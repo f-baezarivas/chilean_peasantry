@@ -17,15 +17,31 @@ source("data_process/01_dpa.R")
 source("helpers/hogar.R") # Household structure helpers
 source("helpers/caf.R") # CAF helpers
 
-caf21_dir <- "C:/Users/fbaez/OneDrive - Universidad Católica de Chile/Bases de datos/Censo Agropecuario/2021/Resultados finales" # Original CAF 2021 .csv files (INE)
+### CAF 2021 source files
+# Public .csv files downloaded from the INE (caf21_url) and cached in caf21_dir. The household questionnaire
+# files are published in a separate folder. Files come in two formats: UTF-8 with decimal comma (productive
+# questionnaire) and Latin-1 with decimal point (household questionnaire and seccion_12).
+caf21_dir <- "input/caf21"
+caf21_url <- "https://www.ine.gob.cl/docs/default-source/censo-agropecuario/base-de-datos/2021"
+caf21_hogar <- c("gestion", "actividad_agricola", "seccion_15_hogar", "seccion_15_hogar_oa")
+caf21_latin1 <- c(caf21_hogar, "seccion_12")
 
+# Reads a CAF 2021 file, downloading it into caf21_dir the first time.
 # Each file is read only once (several are used in more than one step)
 caf21_files <- new.env()
 read_caf21 <- function(file) {
   if (is.null(caf21_files[[file]])) {
-    caf21_files[[file]] <- read_delim(file.path(caf21_dir, paste0(file, ".csv")),
-                                      delim = ";", escape_double = FALSE, locale = locale(decimal_mark = ","),
-                                      trim_ws = TRUE, show_col_types = FALSE) %>%
+    csv <- file.path(caf21_dir, paste0(file, ".csv"))
+    if (!file.exists(csv)) {
+      dir.create(caf21_dir, showWarnings = FALSE, recursive = TRUE)
+      folder <- if (file %in% caf21_hogar) "hogar-agr%C3%ADcola" else "actividad-silvoagropecuaria"
+      options(timeout = max(1200, getOption("timeout")))
+      download.file(paste0(caf21_url, "/", folder, "/csv/", file, ".csv"), csv, mode = "wb")
+    }
+    loc <- if (file %in% caf21_latin1) locale(decimal_mark = ".", encoding = "latin1") else locale(decimal_mark = ",")
+    caf21_files[[file]] <- read_delim(csv, delim = ";", escape_double = FALSE, locale = loc,
+                                      trim_ws = TRUE, show_col_types = FALSE, name_repair = "minimal") %>%
+      select(which(names(.) != "")) %>% # seccion_12 includes an unnamed row-number column
       rename_with(tolower)
   }
   caf21_files[[file]]
