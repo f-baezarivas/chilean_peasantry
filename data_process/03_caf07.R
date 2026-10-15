@@ -16,19 +16,20 @@ source("helpers/caf.R") # CAF helpers
 # OneDrive folder (caf07_share) and cached in caf07_dir.
 caf07_dir <- "input/caf07"
 caf07_share <- "https://uccl0-my.sharepoint.com/:f:/g/personal/fernando_baeza_uc_cl/IgAe-Z43ygyIRb5i-DomDdtJAQ8Li1ohCw8195Qq9EWrqrU"
-caf07_host <- "https://uccl0-my.sharepoint.com/personal/fernando_baeza_uc_cl"
-caf07_folder <- "/personal/fernando_baeza_uc_cl/Documents/Bases de datos/Censo Agropecuario/2007"
 
 # Returns the path of a CAF 2007 file, downloading it into caf07_dir the first time.
-# Opening the share link gives an access cookie, kept in the handle for the download.
+# Opening the share link gives an access cookie (kept in the handle) and redirects to the folder view, whose
+# URL identifies the shared folder (id parameter). Each file is then downloaded from that folder.
 caf07_file <- function(file) {
   path <- file.path(caf07_dir, file)
   if (!file.exists(path)) {
     dir.create(caf07_dir, showWarnings = FALSE, recursive = TRUE)
     h <- new_handle(useragent = "Mozilla/5.0")
-    curl_fetch_memory(caf07_share, handle = h)
+    share <- curl_fetch_memory(caf07_share, handle = h)$url
+    folder <- curl_unescape(sub(".*[?&]id=([^&]+).*", "\\1", share))
     tmp <- paste0(path, ".part")
-    res <- curl_fetch_disk(paste0(caf07_host, "/_layouts/15/download.aspx?SourceUrl=", curl_escape(file.path(caf07_folder, file))),
+    res <- curl_fetch_disk(paste0(sub("/_layouts/.*", "", share), "/_layouts/15/download.aspx?SourceUrl=",
+                                  curl_escape(paste0(folder, "/", file))),
                            tmp, handle = h)
     if (res$status_code != 200 || grepl("text/html", res$type)) { # Login page: the link no longer gives access
       unlink(tmp)
