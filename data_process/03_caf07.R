@@ -5,16 +5,42 @@
 #   - caf07_mie: household members
 
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr, tidyr, haven, readxl)
+pacman::p_load(dplyr, tidyr, haven, readxl, curl)
 
 source("data_process/01_dpa.R")
 source("helpers/hogar.R") # Household structure helpers
 source("helpers/caf.R") # CAF helpers
 
-caf07_dir <- "C:/Users/fbaez/OneDrive - Universidad Católica de Chile/Bases de datos/Censo Agropecuario/2007" # Original CAF 2007 .sav files (INE)
+### CAF 2007 source files
+# The CAF 2007 datasets are not available on the INE website. The original .sav files (INE) are shared in a
+# OneDrive folder (caf07_share) and cached in caf07_dir.
+caf07_dir <- "input/caf07"
+caf07_share <- "https://uccl0-my.sharepoint.com/:f:/g/personal/fernando_baeza_uc_cl/IgAe-Z43ygyIRb5i-DomDdtJAQ8Li1ohCw8195Qq9EWrqrU"
+caf07_host <- "https://uccl0-my.sharepoint.com/personal/fernando_baeza_uc_cl"
+caf07_folder <- "/personal/fernando_baeza_uc_cl/Documents/Bases de datos/Censo Agropecuario/2007"
+
+# Returns the path of a CAF 2007 file, downloading it into caf07_dir the first time.
+# Opening the share link gives an access cookie, kept in the handle for the download.
+caf07_file <- function(file) {
+  path <- file.path(caf07_dir, file)
+  if (!file.exists(path)) {
+    dir.create(caf07_dir, showWarnings = FALSE, recursive = TRUE)
+    h <- new_handle(useragent = "Mozilla/5.0")
+    curl_fetch_memory(caf07_share, handle = h)
+    tmp <- paste0(path, ".part")
+    res <- curl_fetch_disk(paste0(caf07_host, "/_layouts/15/download.aspx?SourceUrl=", curl_escape(file.path(caf07_folder, file))),
+                           tmp, handle = h)
+    if (res$status_code != 200 || grepl("text/html", res$type)) { # Login page: the link no longer gives access
+      unlink(tmp)
+      stop("Could not download ", file, " from the shared folder")
+    }
+    file.rename(tmp, path)
+  }
+  path
+}
 
 read_caf07 <- function(file) {
-  read_sav(file.path(caf07_dir, paste0(file, ".sav"))) %>%
+  read_sav(caf07_file(paste0(file, ".sav"))) %>%
     zap_formats() %>%
     zap_labels() %>%
     zap_label() %>%
@@ -28,7 +54,7 @@ read_caf07 <- function(file) {
 caf07 <- read_caf07("DIRECTORIO") %>%
   left_join(read_caf07("EMPLEO"), by = "dir_folio") %>%
   left_join(read_caf07("TOTALES"), by = "dir_folio") %>%
-  left_join(read_excel(file.path(caf07_dir, "VBP-folio (únicos).xlsx")) %>% select(dir_folio, vbp_uf), by = "dir_folio") %>%
+  left_join(read_excel(caf07_file("VBP-folio (únicos).xlsx")) %>% select(dir_folio, vbp_uf), by = "dir_folio") %>%
   mutate(id_hog = dir_folio,
          hog_afc_est = case_when(dir_condicion_juridica <= 3 & # 1-Individual producer; 2-Successions and de facto partnerships; 3-Commoner with individual use
                                    dir_administrador == 0 & # Not managed by a hired administrator
