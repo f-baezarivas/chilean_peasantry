@@ -6,7 +6,7 @@
 
 library(dplyr)
 
-dpa_cod <- readxl::read_excel("input/dpa_codes.xlsx") # This is a small dataset with old and new municipalities code, according to SUBDERE (https://www.subdere.gov.cl/sites/default/files/documentos/CUT_2018_v04.xls)
+dpa_cod <- readxl::read_excel("input/dpa/dpa_codes.xlsx") # This is a small dataset with old and new municipalities code, according to SUBDERE (https://www.subdere.gov.cl/sites/default/files/documentos/CUT_2018_v04.xls)
 
 dpa_cod<-dpa_cod%>% 
   mutate( # cod_com_0721 has the harmonized municipalities codes for CAF2007 and CAF2021
