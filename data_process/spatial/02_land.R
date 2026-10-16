@@ -1,8 +1,8 @@
 ### LAND USE ###
 # Imports the land-use layers by region from IDE Minagri, based on the Catastro y Actualización de los Recursos
 # Vegetacionales y Uso de la Tierra (CONAF). Keeps agricultural land and grasslands, harmonizes the regional
-# layers and combines them into one national GeoPackage (land_gpkg), in UTM 19S (EPSG 32719).
-# Building land_gpkg takes time: it is built once and then read from input/land.
+# layers and combines them into one national layer, in UTM 19S (EPSG 32719). Exported to output/ as a GeoPackage
+# (land_gpkg). Building it takes time: it is built once and then read from output/.
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, sf, archive)
@@ -12,7 +12,7 @@ pacman::p_load(dplyr, sf, archive)
 # and extracted into land_dir (about 9.5 GB compressed). Only continental regions: the island layers (Isla de
 # Pascua, Robinson Crusoe and Santa Clara, Alejandro Selkirk) are excluded. Each region has a different year.
 land_dir <- "input/land"
-land_gpkg <- file.path(land_dir, "land_use.gpkg")
+land_gpkg <- "output/land_use.gpkg"
 land_url <- "https://ide.minagri.gob.cl/wp-content/uploads/DESCARGAS/CAPAS/PLANIFICACION_CATASTRAL/CATASTRO_CONAF"
 land_files <- tibble::tribble(
   ~reg, ~year,       ~file,
@@ -78,28 +78,35 @@ land_read <- function(shp) {
 }
 
 ### National land-use layer
-# Written to a temporary file first, so an interrupted run does not leave an incomplete land_gpkg.
-# The regional shapefiles are deleted once land_gpkg is built, so land_dir only keeps land_gpkg.
-if (!file.exists(land_gpkg)) {
-  shps <- sapply(land_files$file, land_shp)
-  tmp <- file.path(land_dir, "land_use_part.gpkg")
-  unlink(tmp)
-  for (shp in shps) {
-    message("Reading ", basename(shp))
-    st_write(land_read(shp), tmp, layer = "land_use", append = TRUE, quiet = TRUE)
-  }
-  file.rename(tmp, land_gpkg)
-  unlink(file.path(land_dir, land_files$file), recursive = TRUE)
-}
+# Built from the regional shapefiles only when land_gpkg does not exist yet; otherwise uso_suelo is read from it
+land_new <- !file.exists(land_gpkg)
+if (land_new) land_use <- do.call(rbind, lapply(sapply(land_files$file, land_shp), land_read))
 
 ### Agricultural land use
-# Land-use categories from uso_tierra, which is written differently across regions
-uso_suelo <- st_read(land_gpkg, as_tibble = TRUE, quiet = TRUE) %>%
-  mutate(uso_cat = factor(case_when(grepl("rotaci", uso_tierra, ignore.case = TRUE) ~ "Rotación cultivo-pradera",
-                                    grepl("uso agr", uso_tierra, ignore.case = TRUE) ~ "Agrícola",
-                                    grepl("anual", uso_tierra, ignore.case = TRUE) ~ "Praderas anuales",
-                                    grepl("perenne", uso_tierra, ignore.case = TRUE) ~ "Praderas perennes"),
-                          levels = c("Agrícola", "Rotación cultivo-pradera", "Praderas anuales", "Praderas perennes"))) %>%
-  rename(cod_com = codcom, cod_reg = codreg)
-uso_suelo$area <- st_area(uso_suelo) %>%
-  replace(is.na(.), 0)
+# Land-use categories from uso_tierra, which is written differently across regions.
+# The GeoPackage keeps neither factor levels nor units, so both are restored when uso_suelo is read from it.
+land_cats <- c("Agrícola", "Rotación cultivo-pradera", "Praderas anuales", "Praderas perennes")
+if (land_new) {
+  uso_suelo <- land_use %>%
+    mutate(uso_cat = factor(case_when(grepl("rotaci", uso_tierra, ignore.case = TRUE) ~ "Rotación cultivo-pradera",
+                                      grepl("uso agr", uso_tierra, ignore.case = TRUE) ~ "Agrícola",
+                                      grepl("anual", uso_tierra, ignore.case = TRUE) ~ "Praderas anuales",
+                                      grepl("perenne", uso_tierra, ignore.case = TRUE) ~ "Praderas perennes"),
+                            levels = land_cats)) %>%
+    rename(cod_com = codcom, cod_reg = codreg)
+  uso_suelo$area <- st_area(uso_suelo) %>%
+    replace(is.na(.), 0)
+} else {
+  uso_suelo <- st_read(land_gpkg, as_tibble = TRUE, quiet = TRUE) %>%
+    mutate(uso_cat = factor(uso_cat, levels = land_cats),
+           area = units::set_units(area, m^2))
+}
+
+
+# SAVING ------------------------------------------------------------------
+
+# The regional shapefiles are deleted once land_gpkg is saved, since they are only needed to build it
+if (land_new) {
+  st_write(uso_suelo, land_gpkg, layer = "land_use", delete_dsn = TRUE, quiet = TRUE)
+  unlink(file.path(land_dir, land_files$file), recursive = TRUE)
+}
