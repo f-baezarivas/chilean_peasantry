@@ -45,7 +45,11 @@ read_casen <- function(name) {
     file.rename(file.path(casen_dir, content[i]), sav)
     unlink(zip)
   }
-  read_sav(sav) %>%
+  # The CASEN 2006 file's metadata lists variable names that are not in the data, so haven prints
+  # one harmless "Failed to find <VARIABLE>" line for each. capture.output() hides those lines;
+  # real errors and warnings still show.
+  capture.output(casen <- read_sav(sav))
+  casen %>%
     zap_formats() %>%
     zap_labels() %>%
     zap_label() %>%
