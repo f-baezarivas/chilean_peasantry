@@ -30,9 +30,11 @@ caf21_mie <- caf21_mie %>%
 ### Matching on the variables shared by both datasets (only extended questionnaires)
 caf21 <- caf21_hog %>%
   select(-g2) %>% # The complete version comes from caf21_ce
-  inner_join(caf21_ce, by = c("com", "g3", "hp280_2", paste0("us61_", 1:19),
-                              "ga161", "ga172", "ga182", "ga180", "ga185", "ga186", "ga199", paste0("ga", 201:209),
-                              "tr244", "tr250"),
+  inner_join(caf21_ce%>%
+               filter(g1==1), # Only natural persons: households can only match their own productive unit
+             by = c("com", "g3", "hp280_2", paste0("us61_", 1:19),
+                    "ga161", "ga172", "ga182", "ga180", "ga185", "ga186", "ga199", paste0("ga", 201:209),
+                    "tr244", "tr250"),
              relationship = "many-to-many") %>% # Ambiguous matches are dropped below
   rename(hog_afc_est = hog_afc_est.y, # From the productive questionnaire (gold standard)
          hog_afc_est_hp = hog_afc_est.x) # From the household questionnaire (imputed)

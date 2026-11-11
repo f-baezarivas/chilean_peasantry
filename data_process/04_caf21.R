@@ -156,7 +156,8 @@ caf21_ce <- sec1 %>%
   left_join(trabajo, by = "guid") %>%
   left_join(comuna, by = "guid") %>%
   rename(guid_ce = guid) %>%
-  mutate(hog_afc_est = case_when(ad29 %in% 2:3 & # No hired administrator
+  mutate(hog_afc_est = case_when(g1 == 1 & # Natural person
+                                   ad29 %in% 2:3 & # No hired administrator
                                    tra_per == "No contrató trabajadores permanentes" & # No permanent workers
                                    jor_tra_tem < 240 ~ 1, # Less than 240 days of temporary work per year (one full-time equivalent)
                                  TRUE ~ 0))
