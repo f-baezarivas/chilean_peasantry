@@ -27,20 +27,32 @@ caf21_mie <- caf21_mie %>%
 
 # COMBINATION OF HOUSEHOLD AND PRODUCTIVE DATASETS (CAF21) ---------------------
 
-### Matching on the variables shared by both datasets (only extended questionnaires)
+### Variables shared by both datasets used for matching (only extended questionnaires)
+# 40 variables available in the same format in both datasets (the thesis used 31; ga201-ga209 were added later):
+#   - Municipality (1): com. In caf21_ce, the municipality where most of the unit's land is located
+#   - Main agricultural, livestock or forestry activity generating the most income (1): g3, 45 categories in both
+#     datasets. g2 (main activity) is excluded: it has 73 categories in caf21_ce but only 18 in caf21_hog
+#   - Sales bracket (1): hp280_2
+#   - Land use, hectares (19): us61_1 to us61_19
+#   - Livestock, heads by species (16): cattle (ga161), sheep (ga172), pigs (ga182), goats (ga180),
+#     poultry (ga185, ga186), beehives (ga199) and other livestock (ga201 to ga209)
+#   - Hired labor (2): permanent (tr244) and temporary (tr250) workers
+vars_match <- c("com", "g3", "hp280_2", paste0("us61_", 1:19),
+                "ga161", "ga172", "ga182", "ga180", "ga185", "ga186", "ga199", paste0("ga", 201:209),
+                "tr244", "tr250")
+
+### Matching on vars_match
 caf21 <- caf21_hog %>%
   select(-g2) %>% # The complete version comes from caf21_ce
   inner_join(caf21_ce%>%
                filter(g1==1), # Only natural persons: households can only match their own productive unit
-             by = c("com", "g3", "hp280_2", paste0("us61_", 1:19),
-                    "ga161", "ga172", "ga182", "ga180", "ga185", "ga186", "ga199", paste0("ga", 201:209),
-                    "tr244", "tr250"),
+             by = vars_match,
              relationship = "many-to-many") %>% # Ambiguous matches are dropped below
   rename(hog_afc_est = hog_afc_est.y, # From the productive questionnaire (gold standard)
          hog_afc_est_hp = hog_afc_est.x) # From the household questionnaire (imputed)
 
 ### Only unambiguous matches
-# Households or productive units matched more than once are dropped (about 9 thousand), so that all matches are correct.
+# Households or productive units matched more than once (952) or unmatched (7.201) are dropped, so that all matches are correct.
 # Hence, the number of peasant households is estimated with caf21_pre; household analyses use caf21_hog, productive
 # analyses caf21_ce, and multivariate analyses this combined dataset.
 caf21 <- caf21 %>%
