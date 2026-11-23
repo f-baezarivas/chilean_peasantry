@@ -51,10 +51,13 @@ caf21 <- caf21_hog %>%
   rename(hog_afc_est = hog_afc_est.y, # From the productive questionnaire (gold standard)
          hog_afc_est_hp = hog_afc_est.x) # From the household questionnaire (imputed)
 
-### Only unambiguous matches
-# Households or productive units matched more than once (952) or unmatched (7.201) are dropped, so that all matches are correct.
-# Hence, the number of peasant households is estimated with caf21_pre; household analyses use caf21_hog, productive
-# analyses caf21_ce, and multivariate analyses this combined dataset.
+### Only unambiguous 
+# Only one-to-one matches are kept: 952 households matched more than one unit or shared their unit with another
+# household, and 7,201 found no match, so 121,454 of the 129,607 households (93.7%) are matched.
+# Hence, the number of peasant households is estimated with caf21_pre; 
+# household analyses use caf21_hog, 
+# productive analyses use caf21_ce, 
+# and multivariate analyses this combined dataset (caf21).
 caf21 <- caf21 %>%
   add_count(id_hog, name = "n_hog") %>%
   add_count(guid_ce, name = "n_ce") %>%
