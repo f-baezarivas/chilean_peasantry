@@ -51,13 +51,18 @@ caf21 <- caf21_hog %>%
   rename(hog_afc_est = hog_afc_est.y, # From the productive questionnaire (gold standard)
          hog_afc_est_hp = hog_afc_est.x) # From the household questionnaire (imputed)
 
-### Only unambiguous 
+### Only unambiguous matches
 # Only one-to-one matches are kept: 952 households matched more than one unit or shared their unit with another
 # household, and 7,201 found no match, so 121,454 of the 129,607 households (93.7%) are matched.
-# Hence, the number of peasant households is estimated with caf21_pre; 
-# household analyses use caf21_hog, 
-# productive analyses use caf21_ce, 
-# and multivariate analyses this combined dataset (caf21).
+# Hence (analysis rules in master.R):
+# - the number of peasant households is estimated with caf21_pre (both questionnaires);
+# - household analyses use caf21_hog;
+# - productive analyses use caf21_ce;
+# - analyses relating household and farm variables use this combined dataset (caf21), with cues == "Extendido"
+#   and the classification of the productive questionnaire (hog_afc_est). Matched non-peasant units are biased
+#   towards smaller units (82.8% matched, analysis/comparacion_emparejadas.R), so peasant/non-peasant comparisons
+#   of productive resources use caf21_ce.
+# All characterization is compared with 2007 households with cues_21 == "Extendido" (03_caf07.R).
 caf21 <- caf21 %>%
   add_count(id_hog, name = "n_hog") %>%
   add_count(guid_ce, name = "n_ce") %>%
@@ -65,6 +70,8 @@ caf21 <- caf21 %>%
   select(-n_hog, -n_ce)
 
 ### Abbreviated questionnaires
+# UAC are appended so that caf21 covers all productive units, but they have no household variables: filter
+# cues == "Extendido" for characterization, and use cues == "Abreviado" only to describe UAC separately.
 caf21 <- caf21 %>%
   bind_rows(add_com_0721(caf21_ca)) %>%
   mutate(cues = case_when(substr(guid_ce, 1, 2) == "CE" ~ "Extendido",

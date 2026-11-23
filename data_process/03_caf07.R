@@ -3,6 +3,8 @@
 # identifying peasant (AFC) households:
 #   - caf07: households (one row per farm unit, dir_folio)
 #   - caf07_mie: household members
+# Both include cues_21, the CAF 2021 questionnaire each unit would have answered: counts use all units and
+# characterization only cues_21 == "Extendido" (see the analysis rules in master.R).
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, tidyr, haven, readxl, curl)
@@ -458,10 +460,30 @@ caf07 <- caf07 %>%
   mutate(pct_ing_pre = recode_pct_ing_pre(porcentaje))
 
 
+# COMPARABILITY WITH CAF 2021 --------------------------------------------------
+
+### Questionnaire the unit would have answered in CAF 2021 (cues_21)
+# In CAF 2021, units with 2 ha or more or with sales (any amount, including barter) answered the extended
+# questionnaire, and the rest (self-consumption units, UAC) an abbreviated one without household, management or
+# labor variables. To compare the same segment in both censuses, each 2007 unit is assigned the questionnaire it
+# would have answered: "Extendido" if sup_tot >= 2 or it has at least one commercial production line
+# (n_rub_com >= 1, cut-off points in helpers/caf.R); "Abreviado" otherwise.
+# Sales were not recorded in 2007, so commercial production lines are a proxy. The proxy is probably stricter than
+# "any sale", so the 2007 extended segment may be slightly larger and more commercial than its 2021 counterpart,
+# which slightly exaggerates the decreases (the opposite of the bias the filter corrects).
+# Peasant households (hog_afc_est == 1): 176,464 "Extendido" and 43,574 "Abreviado" (19.8%).
+# Counts use all units; characterization uses cues_21 == "Extendido" (analysis rules in master.R).
+caf07 <- caf07 %>%
+  mutate(cues_21 = factor(if_else(coalesce(sup_tot >= 2, FALSE) | coalesce(n_rub_com >= 1, FALSE),
+                                  "Extendido", "Abreviado"),
+                          levels = c("Extendido", "Abreviado")))
+
+
 # MEMBERS: HOUSEHOLD VARIABLES -------------------------------------------------
 
 caf07_mie <- caf07_mie %>%
-  left_join(select(caf07, id_hog, pue = dir_comunidad_indiijena_explotacion, hog_afc_est, n_mie_rec), by = "id_hog")
+  left_join(select(caf07, id_hog, pue = dir_comunidad_indiijena_explotacion, hog_afc_est, n_mie_rec, cues_21),
+            by = "id_hog") # cues_21: member-level characterization (e.g. peasant workers) uses cues_21 == "Extendido"
 
 
 

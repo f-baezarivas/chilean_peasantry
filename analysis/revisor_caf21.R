@@ -4,6 +4,9 @@
 # 3. 2021 universe harmonized with the CAF 2007 minimums
 # 4. Sensitivity of the 2007 characterization to the 2021 extended-questionnaire criterion
 # Uses the output files of data_process/ and the CAF 2021 .csv files cached in input/caf21.
+# Blocks 3 and 4 support the analysis rules in master.R (23-11-2026): counts use the full universes, with block 3 as
+# a sensitivity check, and characterization compares 2007 households with cues_21 == "Extendido" with the 2021
+# extended questionnaire, with block 4 (Table S10) showing what changes if the full 2007 universe is kept.
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, tidyr, readr, purrr)
@@ -125,6 +128,8 @@ print(as.data.frame(res_duplicados))
 # The abbreviated questionnaire records land use (us61_*) but only the presence of each species (ga152_*), not the
 # number of heads, so its livestock minimums cannot be checked: units with livestock only enter through the rule
 # of two or more lines.
+# Expected: 144,464 censable peasant units (114,026 extended + 30,438 UAC), -34.3% vs 2007. The article reports the
+# count with the full universes (-32.1%); this harmonized count bounds the fall between -32.1% and -34.3%.
 
 bajo_cubierta <- bind_rows(read_caf21("seccion_9_hortalizas") %>% transmute(guid, sup = ss86),
                            read_caf21("seccion_9_flores") %>% transmute(guid, sup = ss113)) %>%
@@ -177,13 +182,15 @@ print(censable %>%
 
 
 # 4. SENSITIVITY OF THE 2007 CHARACTERIZATION ----------------------------------
-# Peasant households of 2007 that would have answered the extended questionnaire in 2021: sup_tot >= 2 or at least
-# one production line with commercial destination according to the cut-off points (n_rub_com >= 1; crops and
-# livestock, umbrales_agr and umbrales_gan in helpers/caf.R).
+# Peasant households of 2007 that would have answered the extended questionnaire in 2021 (cues_21, built in
+# 03_caf07.R): sup_tot >= 2 or at least one production line with commercial destination according to the cut-off
+# points (n_rub_com >= 1; crops and livestock, umbrales_agr and umbrales_gan in helpers/caf.R).
+# Expected: 176,464 marked and 43,574 not marked (19.8%). Demographic variables barely change, but productive and
+# income variables do (mean total area 30.8 vs 38.2 ha), hence the characterization rule in master.R.
 
 caf07_afc <- caf07 %>%
   filter(hog_afc_est == 1) %>%
-  mutate(extendido = coalesce(sup_tot >= 2, FALSE) | coalesce(n_rub_agr_com + n_rub_gan_com >= 1, FALSE))
+  mutate(extendido = cues_21 == "Extendido")
 
 resumen_07 <- function(df) {
   df %>%

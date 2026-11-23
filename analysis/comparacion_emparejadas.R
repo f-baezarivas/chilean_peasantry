@@ -1,4 +1,9 @@
 ### Matched natural-person units (caf21, Extendido) vs. their source datasets (caf21_ce g1 == 1, caf21_hog)
+# CAF 2021 only. Checks whether caf21 can be used for analyses relating household and farm variables: matched
+# peasant units (95.1%) do not differ from their sources; matched non-peasant units (82.8%) lose the largest units,
+# so peasant/non-peasant comparisons of productive resources use caf21_ce (analysis rules in master.R).
+# On each side, units are grouped with the classification of the source: productive questionnaire (hog_afc_est)
+# for productive variables, household questionnaire (hog_afc_est_hp in caf21) for household variables.
 suppressMessages({library(dplyr); library(tidyr); library(purrr)})
 
 ce  <- readRDS("output/caf21_ce.rds") %>% filter(g1 == 1)

@@ -3,12 +3,16 @@
 # datasets that share no common identifier: the household questionnaire (GUID = HP...) and the productive
 # questionnaires (GUID = CE... for the extended questionnaire, CA... for the abbreviated one).
 #   - caf21_ce: productive units (extended questionnaires), with the identification of peasant households
-#   - caf21_ca: productive units (abbreviated questionnaire), with an alternativ identification of peasant households.
+#   - caf21_ca: productive units (abbreviated questionnaire), with an alternative identification of peasant households.
 #   - caf21_pre: all productive units (caf21_ce + caf21_ca). The base for estimating magnitudes, with fewer variables
 #   - caf21_hog: households (household questionnaire). Peasant households are identified in 04_02_caf21_combinacion.R
 #   - caf21_mie: household members
 # Then 04_01_caf21_imputaciones.R imputes the peasant classification for households without complete information,
 # and 04_02_caf21_combinacion.R combines the household and productive datasets (caf21).
+# Use of each dataset (analysis rules in master.R): counts with caf21_pre (both questionnaires, variable cues);
+# characterization only with extended-questionnaire units: caf21_ce (productive), caf21_hog and caf21_mie
+# (household; only extended units answered the household questionnaire) and caf21 with cues == "Extendido"
+# (household and farm). Units of the abbreviated questionnaire (UAC) are described separately.
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, tidyr, readr, purrr)

@@ -13,6 +13,8 @@ caf21_pre <- readRDS("output/caf21_pre.rds")
 
 
 # Dataset -----------------------------------------------------------------
+# Counts of peasant households by municipality: full census universes (analysis rules in master.R), i.e. all
+# caf07 units (cues_21 is not filtered) and all caf21_pre units (extended and abbreviated questionnaires).
 
 
 caf_afc_com<-dpa_com%>%
