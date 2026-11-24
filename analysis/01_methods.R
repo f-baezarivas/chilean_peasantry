@@ -255,7 +255,7 @@ print(as.data.frame(tab_no_logro))
 # row per harmonized municipality: cod_com_0721 and pct_no_logro (% of the managed surface not achieved, 0-100).
 # For merged municipalities, pct_no_logro must be weighted by surface. Without this file the block is skipped.
 # The weights (peso_no_logro) can be used to project the characterization in the results scripts.
-archivo_no_logro <- "input/no_logro/no_logro_comunal.csv"
+archivo_no_logro <- "input/caf21/no_logro_comunal.xlsx"
 
 if (file.exists(archivo_no_logro)) {
   no_logro_com <- read_csv(archivo_no_logro, show_col_types = FALSE) %>%

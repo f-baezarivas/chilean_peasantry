@@ -6,7 +6,7 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, sf, terra)
 
-dpa_cl <- st_read("output/dpa_cl.gpkg", quiet = TRUE) # Built in spatial/01_dpa.R
+dpa_cl <- st_read("output/dpa_cl.gpkg", quiet = TRUE) # Built in spatial/01_dpa_sp.R
 
 ### SPEI source file
 # Raster downloaded from Climate Engine (https://app.climateengine.org/climateEngine), based on ERA5-Ag on a

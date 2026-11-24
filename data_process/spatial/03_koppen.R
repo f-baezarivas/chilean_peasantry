@@ -7,7 +7,7 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, sf)
 
-dpa_com <- st_read("output/dpa_com.gpkg", quiet = TRUE) # Built in spatial/01_dpa.R
+dpa_com <- st_read("output/dpa_com.gpkg", quiet = TRUE) # Built in spatial/01_dpa_sp.R
 
 ### Köppen source file
 # Downloaded from the IDE Chile geoportal (koppen_url) and cached in koppen_dir
