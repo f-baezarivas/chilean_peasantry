@@ -49,3 +49,8 @@ source("data_process/04_02_caf21_combinacion.R") # CAF 2021: peasant households 
 #
 # 5. CASEN is not affected by these rules.
 
+
+# ANALYSIS ---------------------------------------------------------------------
+
+source("analysis/01_methods.R") # Section 4: households for magnitude and characterization, unit of observation, matching and imputation, non-response
+
