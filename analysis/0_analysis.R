@@ -6,7 +6,7 @@ pacman::p_load(dplyr, ggplot2, sf)
 # Figure 1 ----------------------------------------------------------------
 #source()
 
-dpa_com <- st_read("output/dpa_com.gpkg", quiet = TRUE) # Built in spatial/01_dpa.R
+dpa_com <- st_read("output/dpa_com.gpkg", quiet = TRUE) # Built in spatial/01_dpa_sp.R
 caf07 <- readRDS("output/caf07.rds")
 caf21 <- readRDS("output/caf21.rds")
 caf21_pre <- readRDS("output/caf21_pre.rds")

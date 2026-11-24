@@ -3,18 +3,22 @@
 #   1. Self-consumption units (UAC) and the number of households used for magnitude and for characterization
 #   2. Unit of observation: farm (explotacion, 2007) vs. agricultural production unit (UPA, 2021)
 #   3. CAF 2021 particularity 1: separate household and productive datasets (matching and imputation)
-#   4. CAF 2021 particularity 2: non-response (no logro) and the projection of the number of households
+#   4. CAF 2021 particularity 2: non-response (no logro) and the projection of the number and characteristics of
+#      households
 # The analysis rules applied here (counts with full universes, characterization with the CAF 2021
 # extended-questionnaire segment) are documented in master.R.
 # Detailed checks behind the supplementary material (section S6) are kept as annexes:
 #   - analysis/revisor_caf21.R: harmonized 2021 universe, duplicate households, sensitivity of 2007 (Table S10)
 #   - analysis/comparacion_emparejadas.R: matched units vs. their source datasets
 #
-# Requires the output files of data_process/ (master.R) and the CAF 2021 .csv files cached in input/caf21.
+# Requires the output files of data_process/ (master.R), the CAF 2021 .csv files cached in input/caf21 and the
+# municipal non-response file input/caf21/no_logro_comunal.xlsx (not in the public repository; see block 4).
 # Results are printed and saved in output/01_methods.rds.
 
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr, tidyr, readr)
+pacman::p_load(dplyr, tidyr, readr, readxl)
+
+source("data_process/01_dpa.R") # dpa_cod: official (cod_com_2018) and harmonized (cod_com_0721) municipalities
 
 caf07 <- readRDS("output/caf07.rds")
 caf21_pre <- readRDS("output/caf21_pre.rds")
@@ -234,58 +238,104 @@ methods$combinacion <- list(emparejamiento = tab_emparejamiento, emparejadas_afc
 
 # 4. CAF 2021 PARTICULARITY 2: NON-RESPONSE (NO LOGRO) --------------------------
 # The INE estimated non-response as a share of the managed surface, not of the number of units: 8.66% nationally
-# (INE, 2022c, 2022d). The sensitivity of the reduction is assessed by projecting the number of peasant households
-# under the assumption that the share of surface not achieved equals the share of units not censused (a pessimistic
-# assumption, since most of the surface not achieved was natural formations and native forest; the smaller size of
-# peasant units works in the opposite direction, see section S6.4 of the supplementary material).
-# Projected households = observed households / (1 - share not achieved).
+# (INE, 2022c, 2022d). The sensitivity of the results is assessed by projecting the number and characteristics of
+# peasant households under the assumption that the share of surface not achieved equals the share of units not
+# censused (a pessimistic assumption, since most of the surface not achieved was natural formations and native forest;
+# the smaller size of peasant units works in the opposite direction, see section S6.4 of the supplementary material).
+# Each 2021 unit is weighted by 1 / (1 - share not achieved): nationally, or in its municipality.
 pct_no_logro_nacional <- 8.66
 
-### 4.1 National projection (magnitude)
+### 4.1 Municipal non-response
+# input/caf21/no_logro_comunal.xlsx, built from the municipal tables of the INE technical notes: % of the managed
+# surface achieved (logro) and not achieved (no_logro), 0-100, by CAF 2021 harmonized municipality (cod_com_0721,
+# merged municipalities included): 313 of the 315 cod_com_0721, all but 12202 (Antartica) and 99999. Nine urban
+# municipalities of Santiago have 0 in both columns (no agricultural surface). Units in municipalities without
+# information are not projected (weight 1).
+# The file is not in the public repository (input/caf21 is not tracked); without it, only the national projection
+# is computed.
+archivo_no_logro <- "input/caf21/no_logro_comunal.xlsx"
+
+if (file.exists(archivo_no_logro)) {
+  no_logro_com <- read_excel(archivo_no_logro) %>%
+    transmute(cod_com_0721, pct_no_logro = no_logro, peso_no_logro = 1 / (1 - no_logro / 100))
+
+  # Municipalities with high non-response. Expected: 103 harmonized municipalities above 20%, 53 above 30% and 11
+  # above 50%. Counted as official municipalities, 54 above 30% (8113 merges Chiguayante and Hualqui, 36.6%), as in
+  # section S6.4 of the supplementary material.
+  tab_no_logro_com <- no_logro_com %>%
+    left_join(count(dpa_cod, cod_com_0721, name = "n_com_2018"), by = "cod_com_0721") %>%
+    summarise(comunas_0721 = n(),
+              sobre_20 = sum(pct_no_logro > 20),
+              sobre_30 = sum(pct_no_logro > 30),
+              sobre_50 = sum(pct_no_logro > 50),
+              comunas_2018_sobre_30 = sum(n_com_2018[pct_no_logro > 30]),
+              comunas_2018_sobre_50 = sum(n_com_2018[pct_no_logro > 50]))
+  print(as.data.frame(tab_no_logro_com))
+} else {
+  message("No municipal non-response file (", archivo_no_logro, "): only the national projection is computed")
+  no_logro_com <- tibble(cod_com_0721 = integer(), pct_no_logro = double(), peso_no_logro = double())
+}
+
+# Adds the municipal weight to a dataset (municipality in variable com, harmonized codes)
+add_peso <- function(df, com) {
+  df %>%
+    left_join(select(no_logro_com, cod_com_0721, peso_no_logro), by = setNames("cod_com_0721", com)) %>%
+    mutate(peso_no_logro = coalesce(peso_no_logro, 1))
+}
+
+### 4.2 Projection of the number of peasant households (magnitude)
+# Full 2021 universe (caf21_pre, extended questionnaire and UAC) compared with the full 2007 universe.
+# National: 149,258 / (1 - 0.0866) = 163,410 households (-25.7% vs. 2007 instead of -32.1%).
+proy_pre <- caf21_pre %>%
+  filter(hog_afc_est == 1) %>%
+  add_peso("cod_com_0721")
+
 tab_no_logro <- tibble(
-  escenario = c("Observado", "Proyectado con el no logro nacional (8,66%)"),
-  hogares_2021 = c(n21_tot, round(n21_tot / (1 - pct_no_logro_nacional / 100)))) %>%
+  escenario = c("Observado", "Proyectado con el no logro nacional (8,66%)", "Proyectado con el no logro comunal"),
+  hogares_2021 = c(n21_tot, round(n21_tot / (1 - pct_no_logro_nacional / 100)),
+                   if (nrow(no_logro_com) > 0) round(sum(proy_pre$peso_no_logro)) else NA)) %>%
   mutate(hogares_2007 = n07_tot,
          var_abs = hogares_2021 - hogares_2007,
          var_pct = var_pct(hogares_2021, hogares_2007))
 print(as.data.frame(tab_no_logro))
 
-### 4.2 Municipal projection
-# Requires input/no_logro/no_logro_comunal.csv, built from the municipal tables of the INE technical notes, with one
-# row per harmonized municipality: cod_com_0721 and pct_no_logro (% of the managed surface not achieved, 0-100).
-# For merged municipalities, pct_no_logro must be weighted by surface. Without this file the block is skipped.
-# The weights (peso_no_logro) can be used to project the characterization in the results scripts.
-archivo_no_logro <- "input/caf21/no_logro_comunal.xlsx"
+### 4.3 Projection of the characterization
+# Comparable segment (master.R): 2007 households with cues_21 == "Extendido"; 2021 extended questionnaire (caf21_ce
+# for productive variables, caf21_hog for household variables), weighted by municipal non-response. The projection
+# only changes the composition across municipalities: units not censused are assumed to resemble those censused in
+# their municipality. A few key variables are shown here; results scripts can project any variable with the weights
+# saved in output/01_methods.rds (pesos).
+if (nrow(no_logro_com) > 0) {
+  c07 <- caf07 %>% filter(hog_afc_est == 1, cues_21 == "Extendido")
+  ce_p <- caf21_ce %>% filter(hog_afc_est == 1) %>% add_peso("com")
+  hog_p <- caf21_hog %>% filter(hog_afc_est == 1) %>% add_peso("com")
 
-if (file.exists(archivo_no_logro)) {
-  no_logro_com <- read_csv(archivo_no_logro, show_col_types = FALSE) %>%
-    transmute(cod_com_0721, pct_no_logro, peso_no_logro = 1 / (1 - pct_no_logro / 100))
+  wmean <- function(x, w) weighted.mean(x, w, na.rm = TRUE)
 
-  # Municipalities with high non-response (the supplementary material reports 54 above 30% and 11 above 50%)
-  tab_no_logro_com <- no_logro_com %>%
-    summarise(comunas = n(), sobre_20 = sum(pct_no_logro > 20), sobre_30 = sum(pct_no_logro > 30),
-              sobre_50 = sum(pct_no_logro > 50))
-
-  proyeccion_com <- caf21_pre %>%
-    filter(hog_afc_est == 1) %>%
-    count(cod_com_0721, name = "hogares_2021") %>%
-    left_join(no_logro_com, by = "cod_com_0721") %>%
-    mutate(peso_no_logro = coalesce(peso_no_logro, 1), # Municipalities without information: no projection
-           hogares_2021_proy = hogares_2021 * peso_no_logro)
-
-  tab_no_logro <- tab_no_logro %>%
-    bind_rows(tibble(escenario = "Proyectado con el no logro comunal",
-                     hogares_2021 = round(sum(proyeccion_com$hogares_2021_proy)),
-                     hogares_2007 = n07_tot) %>%
-                mutate(var_abs = hogares_2021 - hogares_2007, var_pct = var_pct(hogares_2021, hogares_2007)))
-
-  print(tab_no_logro_com); print(as.data.frame(tab_no_logro))
-  methods$no_logro <- list(proyeccion = tab_no_logro, comunas = tab_no_logro_com, comunal = proyeccion_com,
-                           pesos = no_logro_com)
+  tab_carac_proy <- tibble(
+    variable = c("Hogares caracterizados, variables productivas", "Hogares caracterizados, variables del hogar",
+                 "Superficie total, media (ha)", "Integrantes del hogar, media", "Edad del productor, media",
+                 "Productora mujer (%)"),
+    caf_2007 = c(nrow(c07), nrow(c07), mean(c07$sup_tot, na.rm = TRUE), mean(c07$n_mie, na.rm = TRUE),
+                 mean(c07$edad_jh, na.rm = TRUE), 100 * mean(c07$sex_jh == "Femenino", na.rm = TRUE)),
+    caf_2021_observado = c(nrow(ce_p), nrow(hog_p), mean(ce_p$sup_tot, na.rm = TRUE), mean(hog_p$n_mie, na.rm = TRUE),
+                           mean(hog_p$edad_jh, na.rm = TRUE), 100 * mean(hog_p$sex_jh == "Femenino", na.rm = TRUE)),
+    caf_2021_proyectado = c(sum(ce_p$peso_no_logro), sum(hog_p$peso_no_logro),
+                            wmean(ce_p$sup_tot, ce_p$peso_no_logro), wmean(hog_p$n_mie, hog_p$peso_no_logro),
+                            wmean(hog_p$edad_jh, hog_p$peso_no_logro),
+                            100 * wmean(hog_p$sex_jh == "Femenino", hog_p$peso_no_logro))) %>%
+    mutate(cambio_observado = caf_2021_observado - caf_2007,
+           cambio_proyectado = caf_2021_proyectado - caf_2007,
+           across(where(is.double), ~ round(.x, 2)))
+  print(as.data.frame(tab_carac_proy))
+  rm(c07, ce_p, hog_p)
 } else {
-  message("No municipal non-response file (", archivo_no_logro, "): only the national projection is computed")
-  methods$no_logro <- list(proyeccion = tab_no_logro)
+  tab_carac_proy <- NULL
 }
+
+methods$no_logro <- list(comunas = if (exists("tab_no_logro_com")) tab_no_logro_com, proyeccion = tab_no_logro,
+                         caracterizacion = tab_carac_proy, pesos = no_logro_com)
+rm(proy_pre)
 
 
 # SAVING ------------------------------------------------------------------
