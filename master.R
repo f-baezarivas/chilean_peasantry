@@ -33,7 +33,9 @@ source("data_process/04_02_caf21_combinacion.R") # CAF 2021: peasant households 
 #      according to the cut-off points in helpers/caf.R, a proxy for sales, which CAF 2007 did not record).
 #    - CAF 2021, productive variables: caf21_ce (extended questionnaire only), hog_afc_est == 1 (114,996)
 #    - CAF 2021, household and member variables: caf21_hog and caf21_mie (household questionnaire, which only
-#      extended units answered), hog_afc_est == 1 (115,132, imputed classification)
+#      extended units answered), hog_afc_est == 1. Since 24-11-2026 hog_afc_est is the final classification:
+#      productive questionnaire for matched households, household questionnaire (observed or imputed) for the rest
+#      (source in hog_afc_fuente; 04_02_caf21_combinacion.R)
 #    - CAF 2021, variables relating household and farm: caf21 with cues == "Extendido" (one-to-one matches), using
 #      the classification of the productive questionnaire (hog_afc_est; hog_afc_est_hp is the household one)
 #    The number of peasant workers is a characterization variable: in 2021 it is only known for extended units, so

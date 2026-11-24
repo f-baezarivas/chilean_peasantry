@@ -3,7 +3,9 @@
 # peasant units (95.1%) do not differ from their sources; matched non-peasant units (82.8%) lose the largest units,
 # so peasant/non-peasant comparisons of productive resources use caf21_ce (analysis rules in master.R).
 # On each side, units are grouped with the classification of the source: productive questionnaire (hog_afc_est)
-# for productive variables, household questionnaire (hog_afc_est_hp in caf21) for household variables.
+# for productive variables, household questionnaire (hog_afc_est_hp, observed or imputed, in caf21 and caf21_hog)
+# for household variables. The final classification of caf21_hog (hog_afc_est) is not used here, because for
+# matched households it is the productive one.
 suppressMessages({library(dplyr); library(tidyr); library(purrr)})
 
 ce  <- readRDS("output/caf21_ce.rds") %>% filter(g1 == 1)
@@ -62,7 +64,7 @@ comparar <- function(a, b, f) {
 }
 
 tab_ce  <- comparar(prep_ce(emp), prep_ce(ce), stats_ce)
-tab_hog <- comparar(prep_hog(emp, hog_afc_est_hp), prep_hog(hog, hog_afc_est), stats_hog)
+tab_hog <- comparar(prep_hog(emp, hog_afc_est_hp), prep_hog(hog, hog_afc_est_hp), stats_hog)
 
 fmt <- function(tab) {
   orden <- unique(tab$var)
@@ -86,7 +88,7 @@ pct_emp <- function(num, den) {
 reg_ce  <- pct_emp(emp %>% transmute(reg = com %/% 1000, grupo = lab_afc(hog_afc_est)),
                    ce  %>% transmute(reg = com %/% 1000, grupo = lab_afc(hog_afc_est))) %>% mutate(base = "UPA")
 reg_hog <- pct_emp(emp %>% transmute(reg, grupo = lab_afc(hog_afc_est_hp)),
-                   hog %>% transmute(reg, grupo = lab_afc(hog_afc_est))) %>% mutate(base = "Hogares")
+                   hog %>% transmute(reg, grupo = lab_afc(hog_afc_est_hp))) %>% mutate(base = "Hogares")
 out$reg <- bind_rows(reg_ce, reg_hog) %>%
   mutate(col = paste(base, grupo, sep = "|"), reg = factor(reg_nom[reg], levels = reg_nom[reg_orden])) %>%
   select(reg, col, pct, o) %>%

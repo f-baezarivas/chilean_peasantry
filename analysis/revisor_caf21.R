@@ -65,6 +65,9 @@ rm(sec8)
 # composition (multiset of sex and age of all members) and (d) a different producer (sex and age of the producer
 # differ). Members with missing sex or age enter the composition with an "NA" value. This is an upper bound of
 # duplicates: identical compositions can also be different households.
+# Peasant households are those of the final classification of caf21_hog (hog_afc_est, since 24-11-2026: productive
+# questionnaire for matched households). The figures reported before (2,592 households, 2.25%) used the household
+# questionnaire classification, so they may change slightly.
 
 composicion <- caf21_mie %>%
   group_by(id_hog) %>%

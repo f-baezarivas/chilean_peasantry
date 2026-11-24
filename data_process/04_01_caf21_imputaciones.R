@@ -3,6 +3,9 @@
 # households, because the number of days hired is unknown (hog_afc_est_mis is missing). Their classification is
 # imputed with a multiple imputation model (mice), so that peasant households can be characterized with all
 # household variables.
+# Since 24-11-2026 the imputed classification is the final one only for households without a one-to-one match
+# that hired only temporary workers (1,530); matched households take the classification of the productive
+# questionnaire (04_02_caf21_combinacion.R). In matched pairs the imputation is kept to validate it (Table S8).
 #
 # Not run by default: it is slow, and its results may not exactly reproduce those of the original imputation.
 # Output: output/caf21_imp.rds (id_hog, 10 imputations, observed classification and share of imputations classifying the household as peasant),

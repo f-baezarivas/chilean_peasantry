@@ -1,7 +1,9 @@
 ### CAF 2021: PEASANT HOUSEHOLDS AND COMBINATION OF THE HOUSEHOLD AND PRODUCTIVE DATASETS ###
-# 1. Adds the (imputed) peasant classification to the household and member datasets (caf21_hog, caf21_mie).
+# 1. Adds the peasant classification of the household questionnaire (observed or imputed, hog_afc_est_hp) to caf21_hog.
 # 2. Combines the household and productive datasets (caf21). They share no identifier, so they are matched on all
 #    the variables available in both, keeping only unambiguous matches.
+# 3. Final peasant classification of households (hog_afc_est in caf21_hog and caf21_mie): the classification of the
+#    productive questionnaire for matched households, and that of the household questionnaire for the rest.
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr)
@@ -11,18 +13,19 @@ if (!exists("caf21_hog")) source("data_process/04_caf21.R")
 
 # PEASANT HOUSEHOLDS -----------------------------------------------------------
 
-### Imputed classification
-# Produced by 04_01_caf21_imputaciones.R. As it runs slowly, use the output.
+### Classification of the household questionnaire (hog_afc_est_hp)
+# Observed for households hiring no workers (peasant) or permanent workers (non-peasant); imputed for the 17,438
+# households hiring only temporary workers, whose number of days hired is unknown (hog_afc_est_mis is missing).
+# The imputation is produced by 04_01_caf21_imputaciones.R. As it runs slowly, its output is used (it is not re-run).
 caf21_imp <- readRDS("output/caf21_imp.rds")
 
-# Households classified as peasant in at least 9 of the 10 imputations are peasant households
+# Households classified as peasant in at least 9 of the 10 imputations are peasant households (observed households
+# keep their observed value in every imputation). 115,132 peasant households with this classification.
+# This is not the final classification of caf21_hog: see "Final classification" below.
 caf21_hog <- caf21_hog %>%
   left_join(caf21_imp %>%
-              transmute(id_hog, hog_afc_est = if_else(coalesce(hog_afc_est_mis_sum >= 0.9, FALSE), 1, 0)),
+              transmute(id_hog, hog_afc_est_hp = if_else(coalesce(hog_afc_est_mis_sum >= 0.9, FALSE), 1, 0)),
             by = "id_hog")
-
-caf21_mie <- caf21_mie %>%
-  left_join(select(caf21_hog, id_hog, hog_afc_est, n_mie_rec), by = "id_hog")
 
 
 # COMBINATION OF HOUSEHOLD AND PRODUCTIVE DATASETS (CAF21) ---------------------
@@ -47,9 +50,9 @@ caf21 <- caf21_hog %>%
   inner_join(caf21_ce%>%
                filter(g1==1), # Only natural persons: households can only match their own productive unit
              by = vars_match,
-             relationship = "many-to-many") %>% # Ambiguous matches are dropped below
-  rename(hog_afc_est = hog_afc_est.y, # From the productive questionnaire (gold standard)
-         hog_afc_est_hp = hog_afc_est.x) # From the household questionnaire (imputed)
+             relationship = "many-to-many") # Ambiguous matches are dropped below
+# caf21 keeps both classifications: hog_afc_est from the productive questionnaire (gold standard) and hog_afc_est_hp
+# from the household questionnaire (observed or imputed), used to validate the latter (Table S8)
 
 ### Only unambiguous matches
 # Only one-to-one matches are kept: 952 households matched more than one unit or shared their unit with another
@@ -68,6 +71,35 @@ caf21 <- caf21 %>%
   add_count(guid_ce, name = "n_ce") %>%
   filter(n_hog == 1, n_ce == 1) %>%
   select(-n_hog, -n_ce)
+
+
+
+# PEASANT HOUSEHOLDS: FINAL CLASSIFICATION -------------------------------------
+
+### Final classification of caf21_hog (hog_afc_est), with its source (hog_afc_fuente)
+# Decided on 24-11-2026. Each household gets the best classification available:
+#   - Matched one-to-one (121,454): classification of the productive questionnaire, which has all the variables of
+#     the definition (natural person, no hired administrator, less than 240 days of hired work per year)
+#   - Unmatched (8,153: 7,201 without a match and 952 ambiguous): classification of the household questionnaire,
+#     observed (6,623) or imputed if the household hired only temporary workers (1,530)
+# The imputation is thus the final classification of only 1,530 households. In matched pairs the household
+# classification agrees with the productive one in 95.1% of cases (98.7% observed, 71.5% imputed; Table S8), which is
+# why the productive classification is preferred wherever it is available.
+caf21_hog <- caf21_hog %>%
+  left_join(select(caf21, id_hog, hog_afc_est), by = "id_hog") %>% # caf21: one-to-one matches only (UAC not yet appended)
+  mutate(hog_afc_fuente = factor(case_when(!is.na(hog_afc_est) ~ "Cuestionario productivo",
+                                           !is.na(hog_afc_est_mis) ~ "Cuestionario de hogar, observada",
+                                           TRUE ~ "Cuestionario de hogar, imputada"),
+                                 levels = c("Cuestionario productivo", "Cuestionario de hogar, observada",
+                                            "Cuestionario de hogar, imputada")),
+         hog_afc_est = coalesce(hog_afc_est, hog_afc_est_hp))
+# Check: count(caf21_hog, hog_afc_fuente) should give 121,454 / 6,623 / 1,530
+
+caf21_mie <- caf21_mie %>%
+  left_join(select(caf21_hog, id_hog, hog_afc_est, n_mie_rec), by = "id_hog")
+
+
+# COMBINED DATASET: ABBREVIATED QUESTIONNAIRES ---------------------------------
 
 ### Abbreviated questionnaires
 # UAC are appended so that caf21 covers all productive units, but they have no household variables: filter
