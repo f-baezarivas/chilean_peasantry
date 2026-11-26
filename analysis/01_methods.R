@@ -242,8 +242,7 @@ methods$combinacion <- list(emparejamiento = tab_emparejamiento, emparejadas_afc
 # peasant households under the assumption that the share of surface not achieved equals the share of units not
 # censused (a pessimistic assumption, since most of the surface not achieved was natural formations and native forest;
 # the smaller size of peasant units works in the opposite direction, see section S6.4 of the supplementary material).
-# Each 2021 unit is weighted by 1 / (1 - share not achieved): nationally, or in its municipality.
-pct_no_logro_nacional <- 8.66
+# Each 2021 unit is weighted by 1 / (1 - share not achieved in its municipality).
 
 ### 4.1 Municipal non-response
 # input/caf21/no_logro_comunal.xlsx, built from the municipal tables of the INE technical notes: % of the managed
@@ -251,30 +250,22 @@ pct_no_logro_nacional <- 8.66
 # merged municipalities included): 313 of the 315 cod_com_0721, all but 12202 (Antartica) and 99999. Nine urban
 # municipalities of Santiago have 0 in both columns (no agricultural surface). Units in municipalities without
 # information are not projected (weight 1).
-# The file is not in the public repository (input/caf21 is not tracked); without it, only the national projection
-# is computed.
-archivo_no_logro <- "input/caf21/no_logro_comunal.xlsx"
+# The file is not in the public repository (input/caf21 is not tracked).
+no_logro_com <- read_excel("input/caf21/no_logro_comunal.xlsx") %>%
+  transmute(cod_com_0721, pct_no_logro = no_logro, peso_no_logro = 1 / (1 - no_logro / 100))
 
-if (file.exists(archivo_no_logro)) {
-  no_logro_com <- read_excel(archivo_no_logro) %>%
-    transmute(cod_com_0721, pct_no_logro = no_logro, peso_no_logro = 1 / (1 - no_logro / 100))
-
-  # Municipalities with high non-response. Expected: 103 harmonized municipalities above 20%, 53 above 30% and 11
-  # above 50%. Counted as official municipalities, 54 above 30% (8113 merges Chiguayante and Hualqui, 36.6%), as in
-  # section S6.4 of the supplementary material.
-  tab_no_logro_com <- no_logro_com %>%
-    left_join(count(dpa_cod, cod_com_0721, name = "n_com_2018"), by = "cod_com_0721") %>%
-    summarise(comunas_0721 = n(),
-              sobre_20 = sum(pct_no_logro > 20),
-              sobre_30 = sum(pct_no_logro > 30),
-              sobre_50 = sum(pct_no_logro > 50),
-              comunas_2018_sobre_30 = sum(n_com_2018[pct_no_logro > 30]),
-              comunas_2018_sobre_50 = sum(n_com_2018[pct_no_logro > 50]))
-  print(as.data.frame(tab_no_logro_com))
-} else {
-  message("No municipal non-response file (", archivo_no_logro, "): only the national projection is computed")
-  no_logro_com <- tibble(cod_com_0721 = integer(), pct_no_logro = double(), peso_no_logro = double())
-}
+# Municipalities with high non-response. Expected: 103 harmonized municipalities above 20%, 53 above 30% and 11
+# above 50%. Counted as official municipalities, 54 above 30% (8113 merges Chiguayante and Hualqui, 36.6%), as in
+# section S6.4 of the supplementary material.
+tab_no_logro_com <- no_logro_com %>%
+  left_join(count(dpa_cod, cod_com_0721, name = "n_com_2018"), by = "cod_com_0721") %>%
+  summarise(comunas_0721 = n(),
+            sobre_20 = sum(pct_no_logro > 20),
+            sobre_30 = sum(pct_no_logro > 30),
+            sobre_50 = sum(pct_no_logro > 50),
+            comunas_2018_sobre_30 = sum(n_com_2018[pct_no_logro > 30]),
+            comunas_2018_sobre_50 = sum(n_com_2018[pct_no_logro > 50]))
+print(as.data.frame(tab_no_logro_com))
 
 # Adds the municipal weight to a dataset (municipality in variable com, harmonized codes)
 add_peso <- function(df, com) {
@@ -285,15 +276,13 @@ add_peso <- function(df, com) {
 
 ### 4.2 Projection of the number of peasant households (magnitude)
 # Full 2021 universe (caf21_pre, extended questionnaire and UAC) compared with the full 2007 universe.
-# National: 149,258 / (1 - 0.0866) = 163,410 households (-25.7% vs. 2007 instead of -32.1%).
 proy_pre <- caf21_pre %>%
   filter(hog_afc_est == 1) %>%
   add_peso("cod_com_0721")
 
 tab_no_logro <- tibble(
-  escenario = c("Observado", "Proyectado con el no logro nacional (8,66%)", "Proyectado con el no logro comunal"),
-  hogares_2021 = c(n21_tot, round(n21_tot / (1 - pct_no_logro_nacional / 100)),
-                   if (nrow(no_logro_com) > 0) round(sum(proy_pre$peso_no_logro)) else NA)) %>%
+  escenario = c("Observado", "Proyectado con el no logro comunal"),
+  hogares_2021 = c(n21_tot, round(sum(proy_pre$peso_no_logro)))) %>%
   mutate(hogares_2007 = n07_tot,
          var_abs = hogares_2021 - hogares_2007,
          var_pct = var_pct(hogares_2021, hogares_2007))
@@ -305,39 +294,36 @@ print(as.data.frame(tab_no_logro))
 # only changes the composition across municipalities: units not censused are assumed to resemble those censused in
 # their municipality. A few key variables are shown here; results scripts can project any variable with the weights
 # saved in output/01_methods.rds (pesos).
-if (nrow(no_logro_com) > 0) {
-  c07 <- caf07 %>% filter(hog_afc_est == 1, cues_21 == "Extendido")
-  ce_p <- caf21_ce %>% filter(hog_afc_est == 1) %>% add_peso("com")
-  hog_p <- caf21_hog %>% filter(hog_afc_est == 1) %>% add_peso("com")
+c07 <- caf07 %>% filter(hog_afc_est == 1, cues_21 == "Extendido")
+ce_p <- caf21_ce %>% filter(hog_afc_est == 1) %>% add_peso("com")
+hog_p <- caf21_hog %>% filter(hog_afc_est == 1) %>% add_peso("com")
 
-  wmean <- function(x, w) weighted.mean(x, w, na.rm = TRUE)
+wmean <- function(x, w) weighted.mean(x, w, na.rm = TRUE)
 
-  tab_carac_proy <- tibble(
-    variable = c("Hogares caracterizados, variables productivas", "Hogares caracterizados, variables del hogar",
-                 "Superficie total, media (ha)", "Integrantes del hogar, media", "Edad del productor, media",
-                 "Productora mujer (%)"),
-    caf_2007 = c(nrow(c07), nrow(c07), mean(c07$sup_tot, na.rm = TRUE), mean(c07$n_mie, na.rm = TRUE),
-                 mean(c07$edad_jh, na.rm = TRUE), 100 * mean(c07$sex_jh == "Femenino", na.rm = TRUE)),
-    caf_2021_observado = c(nrow(ce_p), nrow(hog_p), mean(ce_p$sup_tot, na.rm = TRUE), mean(hog_p$n_mie, na.rm = TRUE),
-                           mean(hog_p$edad_jh, na.rm = TRUE), 100 * mean(hog_p$sex_jh == "Femenino", na.rm = TRUE)),
-    caf_2021_proyectado = c(sum(ce_p$peso_no_logro), sum(hog_p$peso_no_logro),
-                            wmean(ce_p$sup_tot, ce_p$peso_no_logro), wmean(hog_p$n_mie, hog_p$peso_no_logro),
-                            wmean(hog_p$edad_jh, hog_p$peso_no_logro),
-                            100 * wmean(hog_p$sex_jh == "Femenino", hog_p$peso_no_logro))) %>%
-    mutate(cambio_observado = caf_2021_observado - caf_2007,
-           cambio_proyectado = caf_2021_proyectado - caf_2007,
-           across(where(is.double), ~ round(.x, 2)))
-  print(as.data.frame(tab_carac_proy))
-  rm(c07, ce_p, hog_p)
-} else {
-  tab_carac_proy <- NULL
-}
+tab_carac_proy <- tibble(
+  variable = c("Hogares caracterizados, variables productivas", "Hogares caracterizados, variables del hogar",
+               "Superficie total, media (ha)", "Integrantes del hogar, media", "Edad del productor, media",
+               "Productora mujer (%)"),
+  caf_2007 = c(nrow(c07), nrow(c07), mean(c07$sup_tot, na.rm = TRUE), mean(c07$n_mie, na.rm = TRUE),
+               mean(c07$edad_jh, na.rm = TRUE), 100 * mean(c07$sex_jh == "Femenino", na.rm = TRUE)),
+  caf_2021_observado = c(nrow(ce_p), nrow(hog_p), mean(ce_p$sup_tot, na.rm = TRUE), mean(hog_p$n_mie, na.rm = TRUE),
+                         mean(hog_p$edad_jh, na.rm = TRUE), 100 * mean(hog_p$sex_jh == "Femenino", na.rm = TRUE)),
+  caf_2021_proyectado = c(sum(ce_p$peso_no_logro), sum(hog_p$peso_no_logro),
+                          wmean(ce_p$sup_tot, ce_p$peso_no_logro), wmean(hog_p$n_mie, hog_p$peso_no_logro),
+                          wmean(hog_p$edad_jh, hog_p$peso_no_logro),
+                          100 * wmean(hog_p$sex_jh == "Femenino", hog_p$peso_no_logro))) %>%
+  mutate(cambio_observado = caf_2021_observado - caf_2007,
+         cambio_proyectado = caf_2021_proyectado - caf_2007,
+         across(where(is.double), ~ round(.x, 2)))
+print(as.data.frame(tab_carac_proy))
+rm(c07, ce_p, hog_p)
 
-methods$no_logro <- list(comunas = if (exists("tab_no_logro_com")) tab_no_logro_com, proyeccion = tab_no_logro,
-                         caracterizacion = tab_carac_proy, pesos = no_logro_com)
+methods$no_logro <- list(comunas = tab_no_logro_com, proyeccion = tab_no_logro, caracterizacion = tab_carac_proy,
+                         pesos = no_logro_com)
 rm(proy_pre)
 
 
 # SAVING ------------------------------------------------------------------
 
 saveRDS(methods, "output/01_methods.rds")
+
